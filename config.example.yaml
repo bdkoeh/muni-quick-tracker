@@ -1,0 +1,30 @@
+# Muni Quick Tracker Configuration
+# Copy this file to config.yaml and fill in your API key
+
+# Get your free API key at https://511.org/open-data
+api_key: "YOUR_511_API_KEY_HERE"
+
+# How often to refresh arrivals (seconds)
+refresh_interval: 30
+
+# Server port
+port: 8080
+
+# Configure your stops
+# Each stop can have multiple directions
+stops:
+  - name: "T Line"
+    line: "T Third"
+    directions:
+      - label: "Chinatown"
+        stop_id: "17166"
+      - label: "Sunnydale"
+        stop_id: "17397"
+
+  - name: "N Line"
+    line: "N Judah"
+    directions:
+      - label: "Ocean Beach"
+        stop_id: "15240"
+      - label: "Downtown"
+        stop_id: "15239"
