@@ -235,6 +235,22 @@ body {
     color: var(--accent-green);
 }
 
+.arrival-pill.now {
+    border-color: var(--accent-cyan);
+    background: rgba(0, 212, 255, 0.15);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.arrival-pill.now .minutes {
+    color: var(--accent-cyan);
+    font-size: 1.1rem;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
 .minutes {
     font-family: 'JetBrains Mono', monospace;
     font-size: 1.5rem;

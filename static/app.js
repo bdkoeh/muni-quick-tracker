@@ -1,7 +1,11 @@
 // State
 let config = null;
 let refreshInterval = null;
+let countdownInterval = null;
 let isLoading = false;
+let arrivalsData = null;
+let dataFetchTime = null;
+let serverLastUpdated = null;
 
 // DOM Elements
 const stopsGrid = document.getElementById('stopsGrid');
@@ -25,6 +29,9 @@ async function init() {
 
         // Set up auto-refresh
         startAutoRefresh();
+
+        // Set up countdown timer
+        startCountdownTimer();
 
         // Set up visibility handling
         setupVisibilityHandler();
@@ -77,7 +84,15 @@ async function fetchArrivals() {
         }
 
         const data = await response.json();
-        renderArrivals(data);
+
+        // Only reset the countdown timer when server data actually changes
+        if (data.last_updated !== serverLastUpdated) {
+            serverLastUpdated = data.last_updated;
+            dataFetchTime = Date.now();
+        }
+
+        arrivalsData = data;
+        renderArrivals();
         hideError();
 
     } catch (error) {
@@ -99,11 +114,20 @@ function formatLocalTime() {
     });
 }
 
-// Render arrivals data
-function renderArrivals(data) {
+// Calculate elapsed minutes since data was fetched
+function getElapsedMinutes() {
+    if (!dataFetchTime) return 0;
+    return Math.floor((Date.now() - dataFetchTime) / 60000);
+}
+
+// Render arrivals data with countdown adjustment
+function renderArrivals() {
+    if (!arrivalsData) return;
+
+    const elapsedMinutes = getElapsedMinutes();
     lastUpdatedEl.textContent = formatLocalTime();
 
-    stopsGrid.innerHTML = data.stops.map(stop => `
+    stopsGrid.innerHTML = arrivalsData.stops.map(stop => `
         <div class="stop-card">
             <div class="stop-header">
                 <div class="line-badge ${getLineBadgeClass(stop.line)}">${getLineInitial(stop.line)}</div>
@@ -116,7 +140,7 @@ function renderArrivals(data) {
                 <div class="direction">
                     <div class="direction-label">${dir.label}</div>
                     <div class="arrivals">
-                        ${renderDirectionArrivals(dir)}
+                        ${renderDirectionArrivals(dir, elapsedMinutes)}
                     </div>
                 </div>
             `).join('')}
@@ -146,7 +170,7 @@ function getTrainTypeClass(lineType) {
 }
 
 // Render arrivals for a single direction
-function renderDirectionArrivals(direction) {
+function renderDirectionArrivals(direction, elapsedMinutes) {
     if (direction.error) {
         return `<span class="error-message">${direction.error}</span>`;
     }
@@ -155,16 +179,29 @@ function renderDirectionArrivals(direction) {
         return `<span class="no-arrivals">No upcoming vehicles</span>`;
     }
 
-    return direction.arrivals.map(arrival => {
-        const isImminent = arrival.minutes <= 5;
+    // Adjust minutes by elapsed time and filter out arrivals more than 2 mins past
+    const adjustedArrivals = direction.arrivals
+        .map(arrival => ({
+            ...arrival,
+            adjustedMinutes: arrival.minutes - elapsedMinutes
+        }))
+        .filter(arrival => arrival.adjustedMinutes >= -1);
+
+    if (adjustedArrivals.length === 0) {
+        return `<span class="no-arrivals">No upcoming vehicles</span>`;
+    }
+
+    return adjustedArrivals.map(arrival => {
+        const isNow = arrival.adjustedMinutes <= 0;
+        const isImminent = arrival.adjustedMinutes <= 5 && arrival.adjustedMinutes > 0;
         const trainType = getTrainTypeLabel(arrival.line_type);
         const trainClass = getTrainTypeClass(arrival.line_type);
 
         return `
-            <div class="arrival-pill ${isImminent ? 'imminent' : ''} ${trainClass}">
+            <div class="arrival-pill ${isNow ? 'now' : ''} ${isImminent ? 'imminent' : ''} ${trainClass}">
                 ${trainType ? `<span class="train-type">${trainType}</span>` : ''}
-                <span class="minutes">${arrival.minutes}</span>
-                <span class="minutes-label">min</span>
+                <span class="minutes">${isNow ? 'Now' : arrival.adjustedMinutes}</span>
+                ${!isNow ? '<span class="minutes-label">min</span>' : ''}
             </div>
         `;
     }).join('');
@@ -209,15 +246,38 @@ function stopAutoRefresh() {
     }
 }
 
+// Countdown timer - ticks down displayed minutes between API refreshes
+function startCountdownTimer() {
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+
+    // Update display every 15 seconds
+    countdownInterval = setInterval(() => {
+        if (!document.hidden && arrivalsData) {
+            renderArrivals();
+        }
+    }, 15000);
+}
+
+function stopCountdownTimer() {
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+}
+
 // Visibility handling - pause when tab is hidden
 function setupVisibilityHandler() {
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             stopAutoRefresh();
+            stopCountdownTimer();
         } else {
             // Refresh immediately when becoming visible
             fetchArrivals();
             startAutoRefresh();
+            startCountdownTimer();
         }
     });
 }
