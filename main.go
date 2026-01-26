@@ -94,6 +94,25 @@ type APIResponse struct {
 
 var config Config
 
+// Shared HTTP client with connection pooling
+var httpClient = &http.Client{
+	Timeout: 15 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        10,
+		MaxIdleConnsPerHost: 5,
+		IdleConnTimeout:     30 * time.Second,
+	},
+}
+
+// Cache for arrivals data
+type ArrivalsCache struct {
+	mu          sync.RWMutex
+	data        ArrivalsResponse
+	lastFetched time.Time
+}
+
+var cache = &ArrivalsCache{}
+
 func loadConfig() error {
 	configPath := "config.yaml"
 	if envPath := os.Getenv("CONFIG_PATH"); envPath != "" {
@@ -137,8 +156,7 @@ func fetchStopArrivals(agency, stopID string) ([]Arrival, error) {
 		config.APIKey, agency, stopID,
 	)
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -147,6 +165,10 @@ func fetchStopArrivals(agency, stopID string) ([]Arrival, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body[:min(len(body), 100)]))
 	}
 
 	// Strip UTF-8 BOM if present
@@ -190,15 +212,14 @@ func fetchStopArrivals(agency, stopID string) ([]Arrival, error) {
 	return arrivals, nil
 }
 
-func handleArrivals(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+// refreshCache fetches all stops sequentially with delays to avoid rate limiting
+func refreshCache() {
+	log.Println("Refreshing arrivals cache...")
 
 	response := ArrivalsResponse{
 		Stops:       make([]StopArrivals, len(config.Stops)),
 		LastUpdated: time.Now().Format("3:04:05 PM"),
 	}
-
-	var wg sync.WaitGroup
 
 	for i, stop := range config.Stops {
 		response.Stops[i] = StopArrivals{
@@ -214,27 +235,75 @@ func handleArrivals(w http.ResponseWriter, r *http.Request) {
 				Arrivals: []Arrival{},
 			}
 
-			wg.Add(1)
-			go func(i, j int, agency, stopID string) {
-				defer wg.Done()
-				arrivals, err := fetchStopArrivals(agency, stopID)
-				if err != nil {
-					response.Stops[i].Directions[j].Error = "Unable to fetch"
-					log.Printf("Error fetching stop %s: %v", stopID, err)
-					return
-				}
+			arrivals, err := fetchStopArrivals(stop.Agency, dir.StopID)
+			if err != nil {
+				response.Stops[i].Directions[j].Error = "Unable to fetch"
+				log.Printf("Error fetching %s (stop %s): %v", dir.Label, dir.StopID, err)
+			} else {
 				// Limit to 3 arrivals
 				if len(arrivals) > 3 {
 					arrivals = arrivals[:3]
 				}
 				response.Stops[i].Directions[j].Arrivals = arrivals
-			}(i, j, stop.Agency, dir.StopID)
+				log.Printf("Fetched %s: %d arrivals", dir.Label, len(arrivals))
+			}
+
+			// Wait 1.5 seconds between API calls to avoid rate limiting
+			// 60 requests/hour = 1 per minute allowed, but we batch them
+			time.Sleep(1500 * time.Millisecond)
 		}
 	}
 
-	wg.Wait()
+	// Update cache
+	cache.mu.Lock()
+	cache.data = response
+	cache.lastFetched = time.Now()
+	cache.mu.Unlock()
 
-	json.NewEncoder(w).Encode(response)
+	log.Println("Cache refresh complete")
+}
+
+// startCacheRefresher runs the cache refresh in the background
+func startCacheRefresher() {
+	// Initial fetch
+	refreshCache()
+
+	// Count total directions to calculate refresh interval
+	totalDirections := 0
+	for _, stop := range config.Stops {
+		totalDirections += len(stop.Directions)
+	}
+
+	// With 60 req/hour limit and 1.5s between requests:
+	// Each refresh cycle takes ~totalDirections * 1.5s
+	// Refresh every 5 minutes for safety buffer (12 refreshes/hour * 4 directions = 48 requests)
+	refreshInterval := 5 * time.Minute
+	log.Printf("Cache will refresh every %v (%d directions)", refreshInterval, totalDirections)
+
+	ticker := time.NewTicker(refreshInterval)
+	go func() {
+		for range ticker.C {
+			refreshCache()
+		}
+	}()
+}
+
+func handleArrivals(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	cache.mu.RLock()
+	data := cache.data
+	cache.mu.RUnlock()
+
+	// If cache is empty, return empty response
+	if len(data.Stops) == 0 {
+		data = ArrivalsResponse{
+			Stops:       make([]StopArrivals, 0),
+			LastUpdated: "Loading...",
+		}
+	}
+
+	json.NewEncoder(w).Encode(data)
 }
 
 func handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -258,6 +327,9 @@ func main() {
 	}
 
 	log.Printf("Loaded config with %d stops", len(config.Stops))
+
+	// Start background cache refresher
+	startCacheRefresher()
 
 	// API routes
 	http.HandleFunc("/api/arrivals", handleArrivals)
