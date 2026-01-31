@@ -112,7 +112,7 @@ body::before {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 12px 20px;
+    padding: 8px 20px;
     background: var(--white);
     border: 5px solid var(--dark-text);
     border-radius: 20px;
@@ -129,7 +129,7 @@ body::before {
 }
 
 .logo {
-    width: 140px;
+    width: 210px;
     height: auto;
     filter: drop-shadow(3px 3px 8px rgba(0, 0, 0, 0.3));
     animation: logoFloat 3s ease-in-out infinite;
@@ -608,17 +608,27 @@ body::before {
 }
 
 /* Mobile adjustments */
-@media (max-width: 400px) {
+@media (max-width: 500px) {
     .container {
         padding: 70px 12px 12px;
     }
 
+    .header {
+        padding: 8px 8px;
+        justify-content: flex-start;
+    }
+
+    .logo-section {
+        gap: 8px;
+    }
+
     .tracker-text {
-        font-size: 2rem;
+        font-size: 1.5rem;
+        letter-spacing: -2px;
     }
 
     .logo {
-        width: 100px;
+        width: 140px;
     }
 
     .stop-card {

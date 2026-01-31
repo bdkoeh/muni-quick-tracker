@@ -239,13 +239,13 @@ func detectQualityIssues(arrivals []Arrival, now time.Time) (string, string) {
 		}
 	}
 
-	// Check 2: Far future first arrival during normal hours
+	// Check 2: Far future first arrival during normal hours (lowered to 50 mins)
 	firstMinutes := times[0].Sub(now).Minutes()
 	hour := now.Hour()
 	isNormalHours := hour >= 6 && hour < 22
 
-	if isNormalHours && firstMinutes > 90 {
-		return "Next arrival unusually far away", "warning"
+	if isNormalHours && firstMinutes > 50 {
+		return "Limited schedule data available", "warning"
 	}
 
 	// Check 3: Sparse data during peak hours
@@ -398,6 +398,23 @@ func handleArrivals(w http.ResponseWriter, r *http.Request) {
 					LineType:    arrival.LineType,
 				})
 			}
+
+			// Remove duplicate arrivals (within 60 seconds of each other)
+			dedupedArrivals := make([]Arrival, 0)
+			for i, arrival := range validArrivals {
+				isDuplicate := false
+				if i > 0 {
+					prevTime, _ := time.Parse(time.RFC3339, validArrivals[i-1].ArrivalTime)
+					currTime, _ := time.Parse(time.RFC3339, arrival.ArrivalTime)
+					if currTime.Sub(prevTime).Seconds() < 60 {
+						isDuplicate = true
+					}
+				}
+				if !isDuplicate {
+					dedupedArrivals = append(dedupedArrivals, arrival)
+				}
+			}
+			validArrivals = dedupedArrivals
 
 			// Limit to 3 upcoming arrivals
 			if len(validArrivals) > 3 {
