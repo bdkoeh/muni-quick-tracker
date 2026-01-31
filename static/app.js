@@ -51,8 +51,18 @@ async function init() {
 function renderSkeletons() {
     if (!config) return;
 
-    stopsGrid.innerHTML = config.stops.map(stop => `
-        <div class="stop-card">
+    stopsGrid.innerHTML = config.stops.map((stop, index) => {
+        const isTThird = index === 0 && stop.line.toLowerCase().includes('t third');
+        const isSecond = index === 1;
+        const isLast = index === config.stops.length - 1;
+        let dataAttr = isTThird ? 'data-card="t-third"' : '';
+        if (isSecond) dataAttr = 'data-card="second"';
+        if (isLast) dataAttr = 'data-card="last"';
+        let dripImg = isTThird ? '<img class="card__drip" src="/drip1.png" alt="" aria-hidden="true" /><img class="card__drip-left" src="/drip4.png" alt="" aria-hidden="true" />' : '';
+        if (isSecond) dripImg = '<img class="card__drip-center" src="/drip3.png" alt="" aria-hidden="true" />';
+        if (isLast) dripImg = '<img class="card__drip-left" src="/drip2.png" alt="" aria-hidden="true" />';
+        return `
+        <div class="stop-card" ${dataAttr}>
             <div class="stop-header">
                 <div class="line-badge ${getLineBadgeClass(stop.line)}">${getLineInitial(stop.line)}</div>
                 <div class="stop-info">
@@ -70,8 +80,9 @@ function renderSkeletons() {
                     </div>
                 </div>
             `).join('')}
+            ${dripImg}
         </div>
-    `).join('');
+    `}).join('');
 }
 
 // Fetch arrivals from API
@@ -144,8 +155,18 @@ function renderArrivals() {
 
     lastUpdatedEl.textContent = formatLocalTime();
 
-    stopsGrid.innerHTML = arrivalsData.stops.map(stop => `
-        <div class="stop-card">
+    stopsGrid.innerHTML = arrivalsData.stops.map((stop, index) => {
+        const isTThird = index === 0 && stop.line.toLowerCase().includes('t third');
+        const isSecond = index === 1;
+        const isLast = index === arrivalsData.stops.length - 1;
+        let dataAttr = isTThird ? 'data-card="t-third"' : '';
+        if (isSecond) dataAttr = 'data-card="second"';
+        if (isLast) dataAttr = 'data-card="last"';
+        let dripImg = isTThird ? '<img class="card__drip" src="/drip1.png" alt="" aria-hidden="true" /><img class="card__drip-left" src="/drip4.png" alt="" aria-hidden="true" />' : '';
+        if (isSecond) dripImg = '<img class="card__drip-center" src="/drip3.png" alt="" aria-hidden="true" />';
+        if (isLast) dripImg = '<img class="card__drip-left" src="/drip2.png" alt="" aria-hidden="true" />';
+        return `
+        <div class="stop-card" ${dataAttr}>
             <div class="stop-header">
                 <div class="line-badge ${getLineBadgeClass(stop.line)}">${getLineInitial(stop.line)}</div>
                 <div class="stop-info">
@@ -161,8 +182,9 @@ function renderArrivals() {
                     </div>
                 </div>
             `).join('')}
+            ${dripImg}
         </div>
-    `).join('');
+    `}).join('');
 }
 
 // Get short train type label
