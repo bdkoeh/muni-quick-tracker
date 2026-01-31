@@ -27,8 +27,27 @@ body {
     overflow-x: hidden;
 }
 
+/* Caution tape banner */
+.caution-tape {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 70px;
+    background: repeating-linear-gradient(
+        45deg,
+        #f1e618,
+        #f1e618 40px,
+        #000000 40px,
+        #000000 80px
+    );
+    z-index: 0;
+    pointer-events: none;
+}
 
-/* Slime drips from top */
+
+/* Slime drips from top - DISABLED */
+/*
 body::before {
     content: '';
     position: fixed;
@@ -59,6 +78,7 @@ body::before {
     0%, 100% { filter: brightness(1) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3)); }
     50% { filter: brightness(1.2) drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4)); }
 }
+*/
 
 
 /* Background decorations */
@@ -69,25 +89,15 @@ body::before {
     right: 0;
     bottom: 0;
     pointer-events: none;
-    opacity: 0.15;
-    z-index: 0;
-}
-
-.squiggle {
-    position: absolute;
-    width: 120px;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.4);
-    border-radius: 50%;
-    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    z-index: 500;
 }
 
 .star {
     position: absolute;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--nick-orange);
     font-size: 2rem;
     animation: twinkle 2s ease-in-out infinite;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    text-shadow: 0 0 15px rgba(255, 103, 0, 0.8);
 }
 
 @keyframes twinkle {
@@ -100,7 +110,6 @@ body::before {
     max-width: 500px;
     margin: 0 auto;
     padding: 80px 16px 16px;
-    padding-bottom: env(safe-area-inset-bottom, 16px);
     position: relative;
     z-index: 1;
     min-height: 100vh;
@@ -129,7 +138,7 @@ body::before {
 }
 
 .logo {
-    width: 210px;
+    width: clamp(180px, 15vw, 210px);
     height: auto;
     filter: drop-shadow(3px 3px 8px rgba(0, 0, 0, 0.3));
     animation: logoFloat 3s ease-in-out infinite;
@@ -145,7 +154,7 @@ body::before {
 }
 
 .tracker-text {
-    font-size: 2.5rem;
+    font-size: clamp(2.25rem, 2.5vw, 2.8125rem);
     font-weight: bold;
     color: var(--dark-text);
     text-shadow: 4px 4px 0 var(--nick-orange);
@@ -262,31 +271,6 @@ body::before {
     50% { transform: translateY(-8px); }
 }
 
-/* Slime drip on card */
-.stop-card::before {
-    content: '';
-    position: absolute;
-    top: -15px;
-    left: 30%;
-    width: 40px;
-    height: 20px;
-    background: var(--slime-green);
-    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-    filter: blur(1px);
-}
-
-.stop-card::after {
-    content: '';
-    position: absolute;
-    bottom: -20px;
-    right: 25%;
-    width: 60px;
-    height: 25px;
-    background: var(--slime-green);
-    border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
-    filter: blur(1px);
-    opacity: 0.8;
-}
 
 .stop-header {
     display: flex;
@@ -627,9 +611,6 @@ body::before {
         letter-spacing: -2px;
     }
 
-    .logo {
-        width: 140px;
-    }
 
     .stop-card {
         padding: 16px;
