@@ -214,7 +214,7 @@ func fetchStopArrivals(agency, stopID string) ([]Arrival, error) {
 // detectQualityIssues analyzes arrivals and returns warning message and level
 func detectQualityIssues(arrivals []Arrival, now time.Time) (string, string) {
 	if len(arrivals) == 0 {
-		return "", "good"
+		return "No data from 511.org", "warning"
 	}
 
 	// Parse arrival times

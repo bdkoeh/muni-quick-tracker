@@ -83,6 +83,9 @@ function renderSkeletons() {
             ${dripImg}
         </div>
     `}).join('');
+
+    // Fix drip positioning after skeleton render
+    setTimeout(fixDripPositioning, 50);
 }
 
 // Fetch arrivals from API
@@ -185,6 +188,9 @@ function renderArrivals() {
             ${dripImg}
         </div>
     `}).join('');
+
+    // Fix drip positioning after arrivals render
+    setTimeout(fixDripPositioning, 50);
 }
 
 // Get short train type label
@@ -214,14 +220,14 @@ function renderDirectionArrivals(direction) {
         return `<span class="error-message">${direction.error}</span>`;
     }
 
-    if (!direction.arrivals || direction.arrivals.length === 0) {
-        return `<span class="no-arrivals">No upcoming vehicles</span>`;
-    }
-
     // Render quality warning if present
     const qualityWarning = direction.quality_warning
         ? renderQualityWarning(direction.quality_warning, direction.quality_level)
         : '';
+
+    if (!direction.arrivals || direction.arrivals.length === 0) {
+        return qualityWarning || `<span class="no-arrivals">No upcoming vehicles</span>`;
+    }
 
     const arrivalPills = direction.arrivals.map(arrival => {
         const isNow = arrival.minutes <= 0;
@@ -335,5 +341,29 @@ refreshBtn.addEventListener('click', () => {
     fetchArrivals();
 });
 
+// Force repaint of drip images after they load (fixes mobile positioning bug)
+function fixDripPositioning() {
+    const drips = document.querySelectorAll('[class*="card__drip"]');
+    drips.forEach(img => {
+        if (img.complete) {
+            img.style.opacity = '0.99';
+            requestAnimationFrame(() => {
+                img.style.opacity = '1';
+            });
+        } else {
+            img.onload = () => {
+                img.style.opacity = '0.99';
+                requestAnimationFrame(() => {
+                    img.style.opacity = '1';
+                });
+            };
+        }
+    });
+}
+
 // Start the app
 init();
+
+// Fix drip positioning after initial render and on each re-render
+document.addEventListener('DOMContentLoaded', fixDripPositioning);
+window.addEventListener('load', fixDripPositioning);

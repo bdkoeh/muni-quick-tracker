@@ -93,11 +93,7 @@ body::before {
 }
 
 .star {
-    position: absolute;
-    color: var(--nick-orange);
-    font-size: 2rem;
-    animation: twinkle 2s ease-in-out infinite;
-    text-shadow: 0 0 15px rgba(255, 103, 0, 0.8);
+    display: none;
 }
 
 @keyframes twinkle {
@@ -263,7 +259,16 @@ body::before {
     padding: 20px;
     position: relative;
     box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
-    animation: float 3s ease-in-out infinite;
+}
+
+/* Slime drip stretch animation */
+@keyframes slimeStretch {
+    0%, 100% {
+        transform: translate(var(--drip-x), var(--drip-y)) scaleY(1) scaleX(1);
+    }
+    50% {
+        transform: translate(var(--drip-x), var(--drip-y)) scaleY(1.08) scaleX(0.97);
+    }
 }
 
 /* T Third card with slime drip */
@@ -273,25 +278,35 @@ body::before {
 }
 
 .stop-card[data-card="t-third"] .card__drip {
+    --drip-x: 35%;
+    --drip-y: -35%;
     position: absolute;
     top: 0;
     right: 0;
-    transform: translate(35%, -35%);
+    transform: translate(var(--drip-x), var(--drip-y));
+    transform-origin: top center;
     width: clamp(150px, 22.5vw, 200px);
     height: auto;
     pointer-events: none;
     z-index: 3;
+    animation: slimeStretch 3s ease-in-out infinite;
+    will-change: transform;
 }
 
 .stop-card[data-card="t-third"] .card__drip-left {
+    --drip-x: -5%;
+    --drip-y: -25%;
     position: absolute;
     top: 0;
     left: 0;
-    transform: translate(-5%, -25%);
+    transform: translate(var(--drip-x), var(--drip-y));
+    transform-origin: top center;
     width: clamp(150px, 22.5vw, 200px);
     height: auto;
     pointer-events: none;
     z-index: 3;
+    animation: slimeStretch 3.5s ease-in-out infinite;
+    will-change: transform;
 }
 
 /* Second card with slime drip on center */
@@ -301,14 +316,19 @@ body::before {
 }
 
 .stop-card[data-card="second"] .card__drip-center {
+    --drip-x: -50%;
+    --drip-y: -30%;
     position: absolute;
     top: 0;
     left: 50%;
-    transform: translate(-50%, -30%);
+    transform: translate(var(--drip-x), var(--drip-y));
+    transform-origin: top center;
     width: clamp(150px, 22.5vw, 200px);
     height: auto;
     pointer-events: none;
     z-index: 3;
+    animation: slimeStretch 4s ease-in-out infinite;
+    will-change: transform;
 }
 
 /* Last card with slime drip on left */
@@ -318,14 +338,19 @@ body::before {
 }
 
 .stop-card[data-card="last"] .card__drip-left {
+    --drip-x: -30%;
+    --drip-y: -35%;
     position: absolute;
     top: 0;
     left: 0;
-    transform: translate(-30%, -35%);
+    transform: translate(var(--drip-x), var(--drip-y));
+    transform-origin: top center;
     width: clamp(150px, 22.5vw, 200px);
     height: auto;
     pointer-events: none;
     z-index: 3;
+    animation: slimeStretch 3.2s ease-in-out infinite;
+    will-change: transform;
 }
 
 @keyframes float {
@@ -413,7 +438,7 @@ body::before {
 }
 
 .direction-label::before {
-    content: '▶';
+    content: '▶\fe0e';
     position: absolute;
     left: 0;
     color: var(--slime-green);
