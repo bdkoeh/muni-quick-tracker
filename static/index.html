@@ -3,29 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0a0a0f">
+    <meta name="theme-color" content="#72f909">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Muni Tracker</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- Background decorations -->
+    <div class="decorations">
+        <div class="squiggle" style="top: 20%; left: 10%; transform: rotate(45deg);"></div>
+        <div class="squiggle" style="top: 60%; right: 15%; transform: rotate(-30deg);"></div>
+        <div class="squiggle" style="bottom: 20%; left: 20%; transform: rotate(60deg);"></div>
+        <div class="squiggle" style="top: 40%; left: 50%; transform: rotate(15deg);"></div>
+        <span class="star" style="top: 15%; right: 10%;">✦</span>
+        <span class="star" style="top: 50%; left: 5%;">✧</span>
+        <span class="star" style="bottom: 15%; right: 20%;">✦</span>
+        <span class="star" style="top: 30%; right: 30%;">✧</span>
+    </div>
+
     <div class="container">
         <header class="header">
-            <h1 class="title">Muni</h1>
-            <div class="header-right">
+            <div class="logo-section">
+                <img src="ChatGPT Image Jan 30, 2026, 08_23_20 PM.png" alt="Muni" class="logo">
+                <span class="tracker-text">TRACKER</span>
+            </div>
+        </header>
+
+        <div class="controls-row">
+            <div class="controls-left">
                 <span class="last-updated" id="lastUpdated">--:--:--</span>
-                <button class="refresh-btn" id="refreshBtn" title="Refresh">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            </div>
+            <div class="controls-right">
+                <button class="button toggle-btn" id="toggleBtn" title="Toggle time display">
+                    <span class="toggle-text" id="toggleText">min</span>
+                </button>
+                <button class="button refresh-btn" id="refreshBtn" title="Refresh">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
                         <path d="M21 3v5h-5"/>
                     </svg>
                 </button>
             </div>
-        </header>
+        </div>
 
         <main class="stops-grid" id="stopsGrid">
             <!-- Stops will be rendered here -->

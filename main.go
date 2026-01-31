@@ -28,24 +28,28 @@ type Stop struct {
 }
 
 type Config struct {
-	APIKey          string `yaml:"api_key"`
-	RefreshInterval int    `yaml:"refresh_interval"`
-	Port            int    `yaml:"port"`
-	Stops           []Stop `yaml:"stops"`
+	APIKey               string `yaml:"api_key"`
+	RefreshInterval      int    `yaml:"refresh_interval"`
+	CacheRefreshInterval int    `yaml:"cache_refresh_interval"`
+	Port                 int    `yaml:"port"`
+	Stops                []Stop `yaml:"stops"`
 }
 
 // API response structures
 type Arrival struct {
+	ArrivalTime string `json:"arrival_time"`
 	Minutes     int    `json:"minutes"`
 	Destination string `json:"destination"`
 	LineType    string `json:"line_type,omitempty"`
 }
 
 type DirectionArrivals struct {
-	Label    string    `json:"label"`
-	StopID   string    `json:"stop_id"`
-	Arrivals []Arrival `json:"arrivals"`
-	Error    string    `json:"error,omitempty"`
+	Label          string    `json:"label"`
+	StopID         string    `json:"stop_id"`
+	Arrivals       []Arrival `json:"arrivals"`
+	Error          string    `json:"error,omitempty"`
+	QualityWarning string    `json:"quality_warning,omitempty"`
+	QualityLevel   string    `json:"quality_level,omitempty"`
 }
 
 type StopArrivals struct {
@@ -180,7 +184,6 @@ func fetchStopArrivals(agency, stopID string) ([]Arrival, error) {
 	}
 
 	arrivals := make([]Arrival, 0)
-	now := time.Now()
 
 	for _, visit := range apiResp.ServiceDelivery.StopMonitoringDelivery.MonitoredStopVisit {
 		// Use arrival time, or departure time if arrival is not available
@@ -192,24 +195,66 @@ func fetchStopArrivals(agency, stopID string) ([]Arrival, error) {
 			continue
 		}
 
-		departTime, err := time.Parse(time.RFC3339, timeStr)
+		// Validate the timestamp can be parsed
+		_, err := time.Parse(time.RFC3339, timeStr)
 		if err != nil {
 			continue
 		}
 
-		minutes := int(departTime.Sub(now).Minutes())
-		if minutes < 0 {
-			minutes = 0
-		}
-
 		arrivals = append(arrivals, Arrival{
-			Minutes:     minutes,
+			ArrivalTime: timeStr,
 			Destination: visit.MonitoredVehicleJourney.DestinationName,
 			LineType:    visit.MonitoredVehicleJourney.LineRef,
 		})
 	}
 
 	return arrivals, nil
+}
+
+// detectQualityIssues analyzes arrivals and returns warning message and level
+func detectQualityIssues(arrivals []Arrival, now time.Time) (string, string) {
+	if len(arrivals) == 0 {
+		return "", "good"
+	}
+
+	// Parse arrival times
+	times := make([]time.Time, 0, len(arrivals))
+	for _, arr := range arrivals {
+		t, err := time.Parse(time.RFC3339, arr.ArrivalTime)
+		if err != nil {
+			continue
+		}
+		times = append(times, t)
+	}
+
+	if len(times) == 0 {
+		return "", "good"
+	}
+
+	// Check 1: Large gaps (>40 mins)
+	for i := 1; i < len(times); i++ {
+		gap := times[i].Sub(times[i-1]).Minutes()
+		if gap > 40 {
+			return "Incomplete data - large gap in arrivals", "warning"
+		}
+	}
+
+	// Check 2: Far future first arrival during normal hours
+	firstMinutes := times[0].Sub(now).Minutes()
+	hour := now.Hour()
+	isNormalHours := hour >= 6 && hour < 22
+
+	if isNormalHours && firstMinutes > 90 {
+		return "Next arrival unusually far away", "warning"
+	}
+
+	// Check 3: Sparse data during peak hours
+	isPeakHours := (hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19)
+	if isPeakHours && len(times) == 1 && firstMinutes < 90 {
+		return "Limited schedule data available", "warning"
+	}
+
+	return "", "good"
 }
 
 // refreshCache fetches all stops sequentially with delays to avoid rate limiting
@@ -240,10 +285,6 @@ func refreshCache() {
 				response.Stops[i].Directions[j].Error = "Unable to fetch"
 				log.Printf("Error fetching %s (stop %s): %v", dir.Label, dir.StopID, err)
 			} else {
-				// Limit to 3 arrivals
-				if len(arrivals) > 3 {
-					arrivals = arrivals[:3]
-				}
 				response.Stops[i].Directions[j].Arrivals = arrivals
 				log.Printf("Fetched %s: %d arrivals", dir.Label, len(arrivals))
 			}
@@ -274,10 +315,14 @@ func startCacheRefresher() {
 		totalDirections += len(stop.Directions)
 	}
 
-	// With 60 req/hour limit and 1.5s between requests:
-	// Each refresh cycle takes ~totalDirections * 1.5s
-	// Refresh every 5 minutes for safety buffer (12 refreshes/hour * 4 directions = 48 requests)
-	refreshInterval := 5 * time.Minute
+	// Use configured interval or default to 240 seconds (4 minutes)
+	// With 60 req/hour limit: 60 / totalDirections = max refreshes per hour
+	// Example: 4 directions = 15 refreshes/hour = 4 minute intervals minimum
+	refreshInterval := time.Duration(config.CacheRefreshInterval) * time.Second
+	if refreshInterval == 0 {
+		refreshInterval = 4 * time.Minute
+	}
+
 	log.Printf("Cache will refresh every %v (%d directions)", refreshInterval, totalDirections)
 
 	ticker := time.NewTicker(refreshInterval)
@@ -292,18 +337,83 @@ func handleArrivals(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	cache.mu.RLock()
-	data := cache.data
+	cachedData := cache.data
 	cache.mu.RUnlock()
 
 	// If cache is empty, return empty response
-	if len(data.Stops) == 0 {
-		data = ArrivalsResponse{
+	if len(cachedData.Stops) == 0 {
+		response := ArrivalsResponse{
 			Stops:       make([]StopArrivals, 0),
 			LastUpdated: "Loading...",
 		}
+		json.NewEncoder(w).Encode(response)
+		return
 	}
 
-	json.NewEncoder(w).Encode(data)
+	// Create a fresh response with recalculated minutes
+	response := ArrivalsResponse{
+		Stops:       make([]StopArrivals, len(cachedData.Stops)),
+		LastUpdated: time.Now().Format("3:04:05 PM"),
+	}
+
+	now := time.Now()
+
+	for i, stop := range cachedData.Stops {
+		response.Stops[i] = StopArrivals{
+			Name:       stop.Name,
+			Line:       stop.Line,
+			Directions: make([]DirectionArrivals, len(stop.Directions)),
+		}
+
+		for j, dir := range stop.Directions {
+			response.Stops[i].Directions[j] = DirectionArrivals{
+				Label:    dir.Label,
+				StopID:   dir.StopID,
+				Arrivals: make([]Arrival, 0),
+				Error:    dir.Error,
+			}
+
+			// Skip if there was an error fetching this direction
+			if dir.Error != "" {
+				continue
+			}
+
+			// Recalculate minutes for each arrival
+			validArrivals := make([]Arrival, 0)
+			for _, arrival := range dir.Arrivals {
+				arrivalTime, err := time.Parse(time.RFC3339, arrival.ArrivalTime)
+				if err != nil {
+					continue
+				}
+
+				minutes := int(arrivalTime.Sub(now).Minutes())
+				if minutes < 0 {
+					continue // Skip arrivals in the past
+				}
+
+				validArrivals = append(validArrivals, Arrival{
+					ArrivalTime: arrival.ArrivalTime,
+					Minutes:     minutes,
+					Destination: arrival.Destination,
+					LineType:    arrival.LineType,
+				})
+			}
+
+			// Limit to 3 upcoming arrivals
+			if len(validArrivals) > 3 {
+				validArrivals = validArrivals[:3]
+			}
+
+			// Detect quality issues
+			warningMsg, qualityLevel := detectQualityIssues(validArrivals, now)
+
+			response.Stops[i].Directions[j].Arrivals = validArrivals
+			response.Stops[i].Directions[j].QualityWarning = warningMsg
+			response.Stops[i].Directions[j].QualityLevel = qualityLevel
+		}
+	}
+
+	json.NewEncoder(w).Encode(response)
 }
 
 func handleConfig(w http.ResponseWriter, r *http.Request) {

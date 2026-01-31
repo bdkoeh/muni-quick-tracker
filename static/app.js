@@ -1,15 +1,15 @@
 // State
 let config = null;
 let refreshInterval = null;
-let countdownInterval = null;
 let isLoading = false;
 let arrivalsData = null;
-let dataFetchTime = null;
-let serverLastUpdated = null;
+let displayMode = 'minutes'; // 'minutes' or 'time'
 
 // DOM Elements
 const stopsGrid = document.getElementById('stopsGrid');
 const lastUpdatedEl = document.getElementById('lastUpdated');
+const toggleBtn = document.getElementById('toggleBtn');
+const toggleText = document.getElementById('toggleText');
 const refreshBtn = document.getElementById('refreshBtn');
 const errorBanner = document.getElementById('errorBanner');
 const errorText = document.getElementById('errorText');
@@ -17,6 +17,14 @@ const errorText = document.getElementById('errorText');
 // Initialize
 async function init() {
     try {
+        // Load display mode from localStorage
+        const savedMode = localStorage.getItem('displayMode');
+        if (savedMode === 'time') {
+            displayMode = 'time';
+            toggleText.textContent = 'time';
+            toggleBtn.classList.add('active');
+        }
+
         // Load config first
         const response = await fetch('/api/config');
         config = await response.json();
@@ -29,9 +37,6 @@ async function init() {
 
         // Set up auto-refresh
         startAutoRefresh();
-
-        // Set up countdown timer
-        startCountdownTimer();
 
         // Set up visibility handling
         setupVisibilityHandler();
@@ -84,13 +89,6 @@ async function fetchArrivals() {
         }
 
         const data = await response.json();
-
-        // Only reset the countdown timer when server data actually changes
-        if (data.last_updated !== serverLastUpdated) {
-            serverLastUpdated = data.last_updated;
-            dataFetchTime = Date.now();
-        }
-
         arrivalsData = data;
         renderArrivals();
         hideError();
@@ -114,17 +112,36 @@ function formatLocalTime() {
     });
 }
 
-// Calculate elapsed minutes since data was fetched
-function getElapsedMinutes() {
-    if (!dataFetchTime) return 0;
-    return Math.floor((Date.now() - dataFetchTime) / 60000);
+// Format arrival time from RFC3339 timestamp
+function formatArrivalTime(arrivalTime) {
+    const date = new Date(arrivalTime);
+    return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
 }
 
-// Render arrivals data with countdown adjustment
+// Render quality warning badge
+function renderQualityWarning(qualityWarning, qualityLevel) {
+    if (!qualityWarning) return '';
+
+    return `
+        <div class="quality-warning">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span class="quality-message">${qualityWarning}</span>
+        </div>
+    `;
+}
+
+// Render arrivals data
 function renderArrivals() {
     if (!arrivalsData) return;
 
-    const elapsedMinutes = getElapsedMinutes();
     lastUpdatedEl.textContent = formatLocalTime();
 
     stopsGrid.innerHTML = arrivalsData.stops.map(stop => `
@@ -140,7 +157,7 @@ function renderArrivals() {
                 <div class="direction">
                     <div class="direction-label">${dir.label}</div>
                     <div class="arrivals">
-                        ${renderDirectionArrivals(dir, elapsedMinutes)}
+                        ${renderDirectionArrivals(dir)}
                     </div>
                 </div>
             `).join('')}
@@ -170,7 +187,7 @@ function getTrainTypeClass(lineType) {
 }
 
 // Render arrivals for a single direction
-function renderDirectionArrivals(direction, elapsedMinutes) {
+function renderDirectionArrivals(direction) {
     if (direction.error) {
         return `<span class="error-message">${direction.error}</span>`;
     }
@@ -179,32 +196,36 @@ function renderDirectionArrivals(direction, elapsedMinutes) {
         return `<span class="no-arrivals">No upcoming vehicles</span>`;
     }
 
-    // Adjust minutes by elapsed time and filter out arrivals more than 2 mins past
-    const adjustedArrivals = direction.arrivals
-        .map(arrival => ({
-            ...arrival,
-            adjustedMinutes: arrival.minutes - elapsedMinutes
-        }))
-        .filter(arrival => arrival.adjustedMinutes >= -1);
+    // Render quality warning if present
+    const qualityWarning = direction.quality_warning
+        ? renderQualityWarning(direction.quality_warning, direction.quality_level)
+        : '';
 
-    if (adjustedArrivals.length === 0) {
-        return `<span class="no-arrivals">No upcoming vehicles</span>`;
-    }
-
-    return adjustedArrivals.map(arrival => {
-        const isNow = arrival.adjustedMinutes <= 0;
-        const isImminent = arrival.adjustedMinutes <= 5 && arrival.adjustedMinutes > 0;
+    const arrivalPills = direction.arrivals.map(arrival => {
+        const isNow = arrival.minutes <= 0;
+        const isImminent = arrival.minutes <= 5 && arrival.minutes > 0;
         const trainType = getTrainTypeLabel(arrival.line_type);
         const trainClass = getTrainTypeClass(arrival.line_type);
+
+        let displayValue, displayLabel;
+        if (displayMode === 'time') {
+            displayValue = formatArrivalTime(arrival.arrival_time);
+            displayLabel = '';
+        } else {
+            displayValue = isNow ? 'Now' : arrival.minutes;
+            displayLabel = isNow ? '' : '<span class="minutes-label">min</span>';
+        }
 
         return `
             <div class="arrival-pill ${isNow ? 'now' : ''} ${isImminent ? 'imminent' : ''} ${trainClass}">
                 ${trainType ? `<span class="train-type">${trainType}</span>` : ''}
-                <span class="minutes">${isNow ? 'Now' : arrival.adjustedMinutes}</span>
-                ${!isNow ? '<span class="minutes-label">min</span>' : ''}
+                <span class="minutes">${displayValue}</span>
+                ${displayLabel}
             </div>
         `;
     }).join('');
+
+    return qualityWarning + arrivalPills;
 }
 
 // Get line badge CSS class
@@ -246,38 +267,15 @@ function stopAutoRefresh() {
     }
 }
 
-// Countdown timer - ticks down displayed minutes between API refreshes
-function startCountdownTimer() {
-    if (countdownInterval) {
-        clearInterval(countdownInterval);
-    }
-
-    // Update display every 15 seconds
-    countdownInterval = setInterval(() => {
-        if (!document.hidden && arrivalsData) {
-            renderArrivals();
-        }
-    }, 15000);
-}
-
-function stopCountdownTimer() {
-    if (countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-    }
-}
-
 // Visibility handling - pause when tab is hidden
 function setupVisibilityHandler() {
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             stopAutoRefresh();
-            stopCountdownTimer();
         } else {
             // Refresh immediately when becoming visible
             fetchArrivals();
             startAutoRefresh();
-            startCountdownTimer();
         }
     });
 }
@@ -292,7 +290,25 @@ function hideError() {
     errorBanner.classList.remove('visible');
 }
 
+// Toggle display mode
+function toggleDisplayMode() {
+    if (displayMode === 'minutes') {
+        displayMode = 'time';
+        toggleText.textContent = 'time';
+        toggleBtn.classList.add('active');
+        localStorage.setItem('displayMode', 'time');
+    } else {
+        displayMode = 'minutes';
+        toggleText.textContent = 'min';
+        toggleBtn.classList.remove('active');
+        localStorage.setItem('displayMode', 'minutes');
+    }
+    renderArrivals();
+}
+
 // Event listeners
+toggleBtn.addEventListener('click', toggleDisplayMode);
+
 refreshBtn.addEventListener('click', () => {
     fetchArrivals();
 });
