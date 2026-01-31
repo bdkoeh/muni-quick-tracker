@@ -84,8 +84,6 @@ function renderSkeletons() {
         </div>
     `}).join('');
 
-    // Fix drip positioning after skeleton render
-    setTimeout(fixDripPositioning, 50);
 }
 
 // Fetch arrivals from API
@@ -189,8 +187,6 @@ function renderArrivals() {
         </div>
     `}).join('');
 
-    // Fix drip positioning after arrivals render
-    setTimeout(fixDripPositioning, 50);
 }
 
 // Get short train type label
@@ -341,29 +337,5 @@ refreshBtn.addEventListener('click', () => {
     fetchArrivals();
 });
 
-// Force repaint of drip images after they load (fixes mobile positioning bug)
-function fixDripPositioning() {
-    const drips = document.querySelectorAll('[class*="card__drip"]');
-    drips.forEach(img => {
-        if (img.complete) {
-            img.style.opacity = '0.99';
-            requestAnimationFrame(() => {
-                img.style.opacity = '1';
-            });
-        } else {
-            img.onload = () => {
-                img.style.opacity = '0.99';
-                requestAnimationFrame(() => {
-                    img.style.opacity = '1';
-                });
-            };
-        }
-    });
-}
-
 // Start the app
 init();
-
-// Fix drip positioning after initial render and on each re-render
-document.addEventListener('DOMContentLoaded', fixDripPositioning);
-window.addEventListener('load', fixDripPositioning);

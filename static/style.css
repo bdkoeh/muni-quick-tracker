@@ -261,14 +261,35 @@ body::before {
     box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
 }
 
-/* Slime drip stretch animation */
+/* Slime drip stretch animation - only handles the stretch effect */
 @keyframes slimeStretch {
     0%, 100% {
-        transform: translate(var(--drip-x), var(--drip-y)) scaleY(1) scaleX(1);
+        transform: scaleY(1) scaleX(1);
     }
     50% {
-        transform: translate(var(--drip-x), var(--drip-y)) scaleY(1.08) scaleX(0.97);
+        transform: scaleY(1.08) scaleX(0.97);
     }
+}
+
+/* Fade in animation for drips - delays rendering until layout is complete */
+@keyframes dripFadeIn {
+    to {
+        opacity: 1;
+    }
+}
+
+/* Base styles for all drip images */
+.card__drip,
+.card__drip-left,
+.card__drip-center {
+    position: absolute;
+    width: clamp(150px, 22.5vw, 200px);
+    height: auto;
+    pointer-events: none;
+    z-index: 3;
+    transform-origin: top center;
+    /* Start hidden */
+    opacity: 0;
 }
 
 /* T Third card with slime drip */
@@ -278,35 +299,17 @@ body::before {
 }
 
 .stop-card[data-card="t-third"] .card__drip {
-    --drip-x: 35%;
-    --drip-y: -35%;
-    position: absolute;
     top: 0;
     right: 0;
-    transform: translate(var(--drip-x), var(--drip-y));
-    transform-origin: top center;
-    width: clamp(150px, 22.5vw, 200px);
-    height: auto;
-    pointer-events: none;
-    z-index: 3;
-    animation: slimeStretch 3s ease-in-out infinite;
-    will-change: transform;
+    translate: 35% -35%;
+    animation: dripFadeIn 0.3s ease-out 0.15s forwards, slimeStretch 3s ease-in-out 0.15s infinite;
 }
 
 .stop-card[data-card="t-third"] .card__drip-left {
-    --drip-x: -5%;
-    --drip-y: -25%;
-    position: absolute;
     top: 0;
     left: 0;
-    transform: translate(var(--drip-x), var(--drip-y));
-    transform-origin: top center;
-    width: clamp(150px, 22.5vw, 200px);
-    height: auto;
-    pointer-events: none;
-    z-index: 3;
-    animation: slimeStretch 3.5s ease-in-out infinite;
-    will-change: transform;
+    translate: -5% -25%;
+    animation: dripFadeIn 0.3s ease-out 0.15s forwards, slimeStretch 3.5s ease-in-out 0.15s infinite;
 }
 
 /* Second card with slime drip on center */
@@ -316,19 +319,10 @@ body::before {
 }
 
 .stop-card[data-card="second"] .card__drip-center {
-    --drip-x: -50%;
-    --drip-y: -30%;
-    position: absolute;
     top: 0;
     left: 50%;
-    transform: translate(var(--drip-x), var(--drip-y));
-    transform-origin: top center;
-    width: clamp(150px, 22.5vw, 200px);
-    height: auto;
-    pointer-events: none;
-    z-index: 3;
-    animation: slimeStretch 4s ease-in-out infinite;
-    will-change: transform;
+    translate: -50% -30%;
+    animation: dripFadeIn 0.3s ease-out 0.15s forwards, slimeStretch 4s ease-in-out 0.15s infinite;
 }
 
 /* Last card with slime drip on left */
@@ -338,19 +332,10 @@ body::before {
 }
 
 .stop-card[data-card="last"] .card__drip-left {
-    --drip-x: -30%;
-    --drip-y: -35%;
-    position: absolute;
     top: 0;
     left: 0;
-    transform: translate(var(--drip-x), var(--drip-y));
-    transform-origin: top center;
-    width: clamp(150px, 22.5vw, 200px);
-    height: auto;
-    pointer-events: none;
-    z-index: 3;
-    animation: slimeStretch 3.2s ease-in-out infinite;
-    will-change: transform;
+    translate: -30% -35%;
+    animation: dripFadeIn 0.3s ease-out 0.15s forwards, slimeStretch 3.2s ease-in-out 0.15s infinite;
 }
 
 @keyframes float {
