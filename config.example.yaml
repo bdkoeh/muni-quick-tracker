@@ -4,8 +4,15 @@
 # Get your free API key at https://511.org/open-data
 api_key: "YOUR_511_API_KEY_HERE"
 
-# How often the frontend refreshes from cache (seconds)
-refresh_interval: 30
+# How often the frontend refreshes from server (seconds)
+# Default: 20 (recommended for real-time accuracy)
+refresh_interval: 20
+
+# How often the backend fetches fresh data from 511.org API (seconds)
+# Default: 240 (4 minutes) - stay within 60 requests/hour limit
+# Formula: 60 minutes / (60 requests/hour / number_of_directions) = minimum interval
+# Example: 4 directions = 60/(60/4) = 4 minutes minimum
+cache_refresh_interval: 240
 
 # Server port
 port: 8080
