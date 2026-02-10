@@ -2,6 +2,8 @@
 
 A fast, glanceable web app showing real-time SF Muni and Caltrain arrivals.
 
+![Muni Quick Tracker](static/screenshot.png)
+
 ## Features
 
 - Real-time arrivals from 511.org API
